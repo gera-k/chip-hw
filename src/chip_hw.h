@@ -124,7 +124,7 @@ namespace R8
 			if (s.compare("PE") == 0) return PE;
 			if (s.compare("PF") == 0) return PF;
 			if (s.compare("PG") == 0) return PG;
-			return PortNone;
+			throw std::runtime_error("Invalid port");
 		}
 
 
@@ -141,7 +141,7 @@ namespace R8
 			int i = std::stoi(s);
 			if (i >= PinMin && i <= PinMax)
 				return Pin(i);
-			return PinNone;
+			throw std::runtime_error("Invalid pin");
 		}
 
 		// register within a port
@@ -185,7 +185,9 @@ namespace R8
 			M3,
 			M4,
 			M5,
-			M6
+			M6,
+			Input = M0,
+			Output = M1,
 		};
 
 		static std::string toStr(Func func)

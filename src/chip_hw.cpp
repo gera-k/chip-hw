@@ -18,7 +18,13 @@ int main(int argc, char* argv[])
 		options.add_options()
 			("h,help", "Print help")
 			("V,verbose", "Print extra info")
-			("P,pio", "Show Port Controller", cxxopts::value<string>()->implicit_value(""), "port[.pin]")
+			("P,pio", "Show Port Controller pin(s)", cxxopts::value<string>()->implicit_value(""), "port[.pin]")
+			("p,pin", "Control PIO pin ([{-r|-s|-c} [-d] [-r])", cxxopts::value<string>(), "port.pin")
+			("i,input", "Set pin to input and read its value")
+			("s,set", "Set pin to output and write 1 to it")
+			("c,clear", "Set pin to output and write 0 to it")
+			("d,driver", "Set pin driver level (0..3)", cxxopts::value<int>(), "level")
+			("r,resistor", "Set pin pull up/down resistor (0-no, 1-up, 2-down)", cxxopts::value<int>(), "mode")
 			;
 
 		bool help = argc <= 1;
@@ -81,9 +87,60 @@ int main(int argc, char* argv[])
 						pio.toStr(pio.Driver(port,pin)).c_str(),
 						pio.toStr(pio.PullUpDown(port,pin)).c_str()
 						);
-
 				}
 			}
+		}
+		else if (result.count("pin"))
+		{
+			R8::PIO pio;
+
+			auto arg = result["pin"].as<string>();
+
+			auto p = arg.find('.');
+			if (p == string::npos)
+				throw runtime_error("Invalid port/pin");
+
+			R8::PIO::Port port = pio.toPort(arg.substr(0,p));
+			R8::PIO::Pin pin = pio.toPin(arg.substr(p+1));
+
+			if (!pio.Bit(port, pin))
+				throw runtime_error("Invalid port/pin");
+
+			if (result.count("driver"))
+			{
+				int d = result["driver"].as<int>();
+				pio.Driver(port, pin, R8::PIO::Drv(d));
+			}
+
+			if (result.count("resistor"))
+			{
+				int d = result["resistor"].as<int>();
+				pio.PullUpDown(port, pin, R8::PIO::Pull(d));
+			}
+
+			if (result.count("set"))
+			{
+				pio.Function(port,pin, pio.Output);
+				pio.Value(port, pin, true);
+			}
+			else if (result.count("clear"))
+			{
+				pio.Function(port,pin, pio.Output);
+				pio.Value(port, pin, false);
+			}
+			else if (result.count("input"))
+			{
+				pio.Function(port,pin, pio.Input);
+				pio.Value(port, pin, false);
+			}
+
+			printf("%s.%02d: %s  Func: %s  Driver: %s  Pull: %s\n",
+				pio.toStr(port).c_str(), pin,
+				pio.Value(port,pin) ? "On" : "Off",
+				pio.toStr(pio.Function(port,pin)).c_str(),
+				pio.toStr(pio.Driver(port,pin)).c_str(),
+				pio.toStr(pio.PullUpDown(port,pin)).c_str()
+				);
 		}
 
 	}

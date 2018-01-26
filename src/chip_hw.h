@@ -12,6 +12,8 @@
 
 namespace R8
 {
+	static constexpr bool debug = true;
+
 	class RegBlock
 	{
 	private:
@@ -27,16 +29,18 @@ namespace R8
 	public:
 		RegBlock(uint32_t addr, uint32_t size)
 		{
-			if (size > Page)
+			_addr = addr & ~Mask;
+			_off = addr & Mask;
+			_size = size;
+
+			if (debug) printf("addr %08x:%08X  off %08X  size %08X\n", addr, _addr, _off, _size);
+
+			if (_off + _size > Page)
 				throw std::runtime_error("invalid register block size");
 
 			_mem = open("/dev/mem", O_RDWR | O_SYNC);
 			if (_mem < 0)
 				throw std::runtime_error("/dev/mem open error");
-
-			_addr = addr & ~Mask;
-			_off = addr & Mask;
-			_size = size;
 
 			_map = mmap(0, Page, PROT_READ | PROT_WRITE, MAP_SHARED, _mem, _addr);
 			if (_map == MAP_FAILED)
@@ -58,7 +62,9 @@ namespace R8
 			if (off >= _size)
 				throw std::runtime_error("invalid register offset");
 
-			return *(uint32_t*)((uint8_t*)_map + _off + off);
+			uint32_t d = *(uint32_t*)((uint8_t*)_map + _off + off);
+			if (debug) printf("reg[%08X]:%08X\n", _addr + _off + off, d);
+			return d;
 		}
 
 		void reg(uint32_t off, uint32_t val)
@@ -66,6 +72,7 @@ namespace R8
 			if (off >= _size)
 				throw std::runtime_error("invalid register offset");
 
+			if (debug) printf("reg[%08X]=%08X\n", _addr + _off + off, val);
 			*(uint32_t*)((uint8_t*)_map + _off + off) = val;
 		}
 
@@ -387,6 +394,98 @@ namespace R8
 		}
 
 	};
+
+	// PWM
+	//	0x01C20E00---0x01C20E08 8 bytes
+	class PWM : public RegBlock
+	{
+	private:
+		static constexpr PIO::Port _port = PIO::PB;
+		static constexpr PIO::Pin _pin = 2;
+		static constexpr PIO::Func Pwm = PIO::M2;
+
+		// registers
+		enum Reg
+		{
+			CTRL = 0,
+			PERIOD = 4
+		};
+
+		// Control register
+		enum RegCtrl
+		{
+			RDY = (1<<28),		// 0 - Period reg is ready to write
+								// 1 = Period reg is busy
+			BYPASS = (1<<9),	// 1 - enable 24MHz clock
+			PUL_START = (1<<8),	// 1 - output one pulse
+			MODE = (1<<7),		// 0 - cycle mode
+								// 1 - pulse mode
+			GATING = (1<<6),	// 0 - mask special clock
+								// 1 - pass
+			ACT_STA = (1<<5),	// 0 - Active low
+								// 1 - high
+			EN = (1<<4),		// 1 - channel enable
+		};
+
+	public:
+
+		using Length = uint16_t;	// length of period/duty cycle in clocks
+
+		enum Scale
+		{
+			SCALE_120 = 0,		// scale = 1/120
+			SCALE_180 = 1,
+			SCALE_240 = 2,
+			SCALE_360 = 3,
+			SCALE_480 = 4,
+			SCALE_12K = 8,
+			SCALE_24K = 9,
+			SCALE_36K = 10,
+			SCALE_48K = 11,
+			SCALE_72K = 12,
+			SCALE_1 = 15,
+		};
+
+		PWM() : RegBlock(0x01C20E00, 8)
+		{
+			// set pin function to PWM
+			PIO pio;
+			pio.Function(_port, _pin, Pwm);
+
+			// TODO: driver level, pull
+
+			stop();
+		}
+
+		~PWM()
+		{
+			stop();
+
+			PIO pio;
+			pio.Function(_port, _pin, PIO::Input);
+		}
+
+		void start(Scale scale, Length period, Length duty_cycle)
+		{
+			uint32_t d;
+
+			d = period - 1;
+			d <<= 16;
+			d |= duty_cycle;
+			reg(PERIOD, d);
+
+			d = scale;
+			d |= GATING | ACT_STA | EN;
+			reg(CTRL, d);
+		}
+
+		void stop()
+		{
+			reg(CTRL, 0);
+		}
+
+	};
+
 }
 
 

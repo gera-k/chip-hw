@@ -13,6 +13,8 @@ int main(int argc, char* argv[])
 
 	try
 	{
+		vector<int> args;
+
 		cxxopts::Options options(argv[0], "C.H.I.P. hardware explorer ver 0.1 built " __DATE__ " " __TIME__);
 
 		options.add_options()
@@ -25,12 +27,15 @@ int main(int argc, char* argv[])
 			("c,clear", "Set pin to output and write 0 to it")
 			("d,driver", "Set pin driver level (0..3)", cxxopts::value<int>(), "level")
 			("r,resistor", "Set pin pull up/down resistor (0-no, 1-up, 2-down)", cxxopts::value<int>(), "mode")
+			("pwm", "Start PWM", cxxopts::value<int>(), "period [duty_cycle]")
+			("positional", "", cxxopts::value<vector<int>>(args))
 			;
 
 		bool help = argc <= 1;
 
 //		printf("argc=%d  help=%d\n", argc, help);
 
+		options.parse_positional({"positional"});
 		auto result = options.parse(argc, argv);
 
 //		printf("help=%d\n", result.count("help"));
@@ -141,6 +146,24 @@ int main(int argc, char* argv[])
 				pio.toStr(pio.Driver(port,pin)).c_str(),
 				pio.toStr(pio.PullUpDown(port,pin)).c_str()
 				);
+		}
+		else if (result.count("pwm"))
+		{
+			auto arg0 = result["pwm"].as<int>();
+
+			R8::PWM::Length period = arg0;
+			R8::PWM::Length duty_cycle = period/2;
+
+			if (args.size() > 0)
+				duty_cycle = args[0];
+
+			R8::PWM pwm;
+
+			pwm.start(pwm.SCALE_1, period, duty_cycle);
+
+			printf("Hit any key to stop...");
+			getchar();
+
 		}
 
 	}

@@ -44,7 +44,7 @@ all: chip_hw
 chip_hw: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C++ Linker'
-	${CC}  -o "chip_hw" $(OBJS) $(USER_OBJS) $(LIBS)
+	${CC} -pthread -o "chip_hw" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

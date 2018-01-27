@@ -12,7 +12,7 @@
 
 namespace R8
 {
-	static constexpr bool debug = true;
+	static constexpr bool debug = !true;
 
 	class RegBlock
 	{
@@ -229,20 +229,20 @@ namespace R8
 		// pin driver level
 		enum Drv
 		{
-			L0,
-			L1,
-			L2,
-			L3
+			L10,
+			L20,
+			L30,
+			L40
 		};
 
 		static std::string toStr(Drv drv)
 		{
 			switch(drv)
 			{
-			case L0: return "L0"; break;
-			case L1: return "L1"; break;
-			case L2: return "L2"; break;
-			case L3: return "L3"; break;
+			case L10: return "10mA"; break;
+			case L20: return "20mA"; break;
+			case L30: return "30mA"; break;
+			case L40: return "40mA"; break;
 			}
 
 			return "??";
@@ -774,6 +774,60 @@ namespace R8
 			while (!(reg(ST) & TC) && (t--));
 
 			reg(CTL, _mode);
+		}
+	};
+
+	// LRADC - low resolution ADC
+	class LRADC : public RegBlock
+	{
+	private:
+		enum Reg
+		{
+			CTRL = 0x00,
+			INTC = 0x04,
+			INTS = 0x08,
+			DATA0 = 0x0C,
+			DATA1 = 0x10
+		};
+
+		enum RegCTRL
+		{
+			CHAN_0 = (0 << 22),				// select channel 0
+			CHAN_1 = (1 << 22),				// select channel 1
+			CTS_SHIFT = 16,					// continuous time select
+			CTS_MASK = (0xF << CTS_SHIFT),	//	update on every 8*(CTS+1) sample
+			KEY_MODE_NORNAL = (0 << 12),
+			KEY_MODE_SINGLE = (1 << 12),
+			KEY_MODE_CONT = (2 << 12),
+			RATE_250 = (0 << 2),
+			RATE_125 = (1 << 2),
+			RATE_62p5 = (2 << 2),
+			RATE_32p25 = (3 << 2),
+			EN = 1
+		};
+
+		enum RegINTS
+		{
+			ADC0_DATA_PENDING = (1 << 0)
+		};
+
+	public:
+		LRADC() : RegBlock(0x01C22800, 0x14)
+		{
+			reg(CTRL, CHAN_0 | KEY_MODE_CONT | RATE_250 | EN);
+		}
+
+		~LRADC()
+		{
+			reg(CTRL, 0);
+		}
+
+		uint8_t data()
+		{
+			int t = 1000000;
+			while ( !(reg(INTS) & ADC0_DATA_PENDING) && (t--));
+			reg(INTS, ~0);
+			return reg(DATA0) & 0x3F;
 		}
 	};
 }

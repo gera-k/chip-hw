@@ -1,6 +1,7 @@
 #include "chip_hw.h"
 
 #include <iostream>
+#include <thread>
 
 #include "cxxopts.hpp"
 
@@ -30,6 +31,8 @@ int main(int argc, char* argv[])
 			("r,resistor", "Set pin pull up/down resistor (0-no, 1-up, 2-down)", cxxopts::value<int>(), "mode")
 			("pwm", "Start PWM", cxxopts::value<int>(), "period [duty]")
 			("spi", "Send data to SPI2", cxxopts::value<int>(), "div data [data...]")
+			("adc", "Read LRADC one time on in a loop", cxxopts::value<int>()->implicit_value("0"), "delay")
+			("led", "Test PWM LED control through LRADC")
 			("positional", "", cxxopts::value<vector<uint32_t>>(args))
 			;
 
@@ -193,7 +196,52 @@ int main(int argc, char* argv[])
 					break;
 			}
 		}
+		else if (result.count("adc"))
+		{
+			R8::LRADC lradc;
 
+			//auto delay = result["adc"].as<int>();
+
+			while (true)
+			{
+				printf("LRADC: %d\n", lradc.data());
+
+				printf("Hit any key to repeat, q to quit...");
+				if (getchar() == 'q')
+					break;
+			}
+		}
+		else if (result.count("led"))
+		{
+			bool run = true;
+
+			thread led([&run]() -> void {
+				R8::LRADC lradc;
+				R8::PWM pwm;
+				R8::PWM::Length max = 48;
+				uint8_t v = 0xFF;
+
+				while (run)
+				{
+					this_thread::sleep_for(chrono::milliseconds(100));
+					uint8_t vn = lradc.data();
+
+					if (vn != v)
+					{
+						v = vn;
+						printf("V %d\n", v);
+						pwm.start(pwm.SCALE_1, max, v);
+					}
+				}
+			});
+
+			printf("Hit any key to quit...\n");
+			getchar();
+			run = false;
+
+			if (led.joinable())
+				led.join();
+		}
 	}
 	catch (const cxxopts::OptionException& e)
 	{

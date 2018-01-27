@@ -13,7 +13,7 @@ int main(int argc, char* argv[])
 
 	try
 	{
-		vector<int> args;
+		vector<uint32_t> args;
 
 		cxxopts::Options options(argv[0], "C.H.I.P. hardware explorer ver 0.1 built " __DATE__ " " __TIME__);
 
@@ -25,10 +25,12 @@ int main(int argc, char* argv[])
 			("i,input", "Set pin to input and read its value")
 			("s,set", "Set pin to output and write 1 to it")
 			("c,clear", "Set pin to output and write 0 to it")
+			("f,function", "Set pin function (0..6)", cxxopts::value<int>(), "func")
 			("d,driver", "Set pin driver level (0..3)", cxxopts::value<int>(), "level")
 			("r,resistor", "Set pin pull up/down resistor (0-no, 1-up, 2-down)", cxxopts::value<int>(), "mode")
-			("pwm", "Start PWM", cxxopts::value<int>(), "period [duty_cycle]")
-			("positional", "", cxxopts::value<vector<int>>(args))
+			("pwm", "Start PWM", cxxopts::value<int>(), "period [duty]")
+			("spi", "Send data to SPI2", cxxopts::value<int>(), "div data [data...]")
+			("positional", "", cxxopts::value<vector<uint32_t>>(args))
 			;
 
 		bool help = argc <= 1;
@@ -117,6 +119,12 @@ int main(int argc, char* argv[])
 				pio.Driver(port, pin, R8::PIO::Drv(d));
 			}
 
+			if (result.count("function"))
+			{
+				int d = result["function"].as<int>();
+				pio.Function(port, pin, R8::PIO::Func(d));
+			}
+
 			if (result.count("resistor"))
 			{
 				int d = result["resistor"].as<int>();
@@ -164,6 +172,26 @@ int main(int argc, char* argv[])
 			printf("Hit any key to stop...");
 			getchar();
 
+		}
+		else if (result.count("spi"))
+		{
+			auto div = result["spi"].as<int>();
+			uint32_t d = 0xAAAAAAAA;
+
+			if (args.size() > 0)
+				d = args[0];
+
+			R8::SPI spi(2);
+			spi.clock(div);
+
+			while(true)
+			{
+				spi.tx(d);
+
+				printf("Hit any key to repeat, q to quit...");
+				if (getchar() == 'q')
+					break;
+			}
 		}
 
 	}

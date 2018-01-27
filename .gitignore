@@ -1,5 +1,4 @@
-/Debug/src
+/Debug/src/*.[do]
 /Debug/chip_hw
-/Release/src
+/Release/src/*.[do]
 /Release/chip_hw
-/Debug/
